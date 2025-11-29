@@ -1,5 +1,11 @@
 import { Edit, Sparkles } from 'lucide-react'
 import React, { useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import axios from 'axios'
+import { useAuth } from '@clerk/clerk-react';
+import toast from 'react-hot-toast';
+
+axios.defaults.baseURL = import.meta.env.VITE_BASE_URL;
 
 const WriteArticle = () => {
 
@@ -12,9 +18,30 @@ const WriteArticle = () => {
 
   const [selectedLength, setSelecetedLength] = useState(articleLength[0])
   const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [content, setContent] = useState('')
+
+  const {getToken} = useAuth()
 
   const onSubmitHandler = async (e)=>{
     e.preventDefault();
+    try {
+      setLoading(true)
+      const prompt = `Write an article about ${input} in ${selectedLength.text}`
+
+      const {data} = await axios.post('/api/ai/generate-article', {prompt, length:selectedLength.length}, {
+        headers: {Authorization: `Bearer ${await getToken()}`}
+      })
+
+      if(data.success){
+        setContent(data.content)
+      }else{
+        toast.error(data.message)
+      }
+    } catch (error) {
+      
+    }
+    setLoading(false)
   }
 
   return (
@@ -39,8 +66,12 @@ const WriteArticle = () => {
           ))}
         </div>
         <br />
-        <button className='w-full flex justify-center items-center gap-2 bg-linear-to-r from-[#226BFF] to-[#65ADFF] text-white px-4 py-2 mt-6 text-sm rounded-lg cursor-pointer'>
-          <Edit className='w-5' />
+        <button disabled={loading} className='w-full flex justify-center items-center gap-2 bg-linear-to-r from-[#226BFF] to-[#65ADFF] text-white px-4 py-2 mt-6 text-sm rounded-lg cursor-pointer'>
+          {
+            loading ? <span className='w-4 h-4 my-1 rounded-full border-2 border-t-transparent animate-spin'></span>
+            : <Edit className='w-5' />
+          }
+          
           Generate Article
         </button>
 
@@ -53,12 +84,34 @@ const WriteArticle = () => {
           <h1 className='text-xl font-semibold'>Generated Article</h1>
 
         </div>
-        <div className='flex-1 flex justify-center items-center'>
-          <div className='text-sm flex flex-col items-center gap-5 text-gray-400'>
-            <Edit className='w-9 h-9'/>
-            <p>Enter a topic and click "Generate Article" to get started</p>
+
+        {content ? (
+          <div className='mt-3 h-full overflow-y-scroll text-base leading-7 text-slate-700 pr-1'>
+            <ReactMarkdown
+              components={{
+                h1: (props) => <h1 className='text-2xl sm:text-3xl font-semibold text-slate-800 tracking-tight mt-1 mb-4' {...props} />,
+                h2: (props) => <h2 className='text-xl sm:text-2xl font-semibold text-slate-800 mt-6 mb-3' {...props} />,
+                h3: (props) => <h3 className='text-lg sm:text-xl font-semibold text-slate-800 mt-5 mb-2' {...props} />,
+                p: (props) => <p className='text-slate-600 my-4' {...props} />,
+                ul: (props) => <ul className='list-disc pl-6 space-y-3 my-4' {...props} />,
+                ol: (props) => <ol className='list-decimal pl-6 space-y-3 my-4' {...props} />,
+                li: (props) => <li className='text-slate-600' {...props} />,
+                blockquote: (props) => <blockquote className='border-l-4 pl-4 italic text-slate-600 my-4' {...props} />,
+                hr: (props) => <hr className='my-6 border-gray-200' {...props} />,
+              }}
+            >
+              {content}
+            </ReactMarkdown>
           </div>
-        </div>
+        ) : (
+          <div className='flex-1 flex justify-center items-center'>
+            <div className='text-sm flex flex-col items-center gap-5 text-gray-400'>
+              <Edit className='w-9 h-9'/>
+              <p>Enter a topic and click "Generate Article" to get started</p>
+            </div>
+          </div>
+        )}
+        
 
       </div>
     </div>
