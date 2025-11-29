@@ -6,9 +6,7 @@ import axios from "axios";
 import { v2 as cloudinary } from "cloudinary";
 import FormData from "form-data";
 import fs from 'fs'
-import { createRequire } from 'module'
-const require = createRequire(import.meta.url)
-const pdf = require('pdf-parse')
+import { PDFParse } from 'pdf-parse'
 
 const AI = new OpenAI({
     apiKey: process.env.GEMINI_API_KEY,
@@ -224,7 +222,7 @@ export const removeImageObject = async (req, res)=>{
 export const resumeReview = async (req, res)=>{
     try {
         const { userId } = req.auth();
-        const { resume } = req.file;
+        const file = req.file || req.files?.resume;
         const plan = req.plan;
         
 
@@ -232,11 +230,17 @@ export const resumeReview = async (req, res)=>{
             return res.json({ success: false, message: "This feature is only available for premium subscriptions."})
         }
 
-        if(resume.size > 5 * 1024 * 1024){
+        if(!file){
+            return res.json({ success: false, message: "No resume file uploaded."})
+        }
+
+        if(file.size > 5 * 1024 * 1024){
             return res.json({ success: false, message: "Resume file size exceeds allowed size (5MB)."})
         }
-        const dataBuffer = fs.readFileSync(resume.path)
-        const pdfData = await pdf(dataBuffer)
+        const dataBuffer = file.buffer ? file.buffer : fs.readFileSync(file.path)
+        const parser = new PDFParse({ data: dataBuffer })
+        const pdfData = await parser.getText()
+        await parser.destroy()
 
         const prompt = `Review the following resume and provide constructive feedback on its strengths, weaknesses, and areas for improvement. Resume Content:\n\n${pdfData.text}`
 
